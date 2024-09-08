@@ -1,12 +1,25 @@
 # Stage 1: Build the client binary
-FROM golang:1.19-alpine as builder
+FROM golang:1.19-alpine AS builder
 WORKDIR /app
 COPY . .
 RUN go mod download
 RUN CGO_ENABLED=0 GOOS=linux go build -o /app/client ./client
 
-# Stage 2: Run the client
+# Stage 2: Create a secure rootless image
 FROM alpine:latest
-WORKDIR /root/
+
+# Create a non-root user and group with the least privileges
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+# Set the working directory and copy the client binary from the builder stage
+WORKDIR /home/appuser/
 COPY --from=builder /app/client .
+
+# Change ownership of files to the non-root user
+RUN chown -R appuser:appgroup /home/appuser
+
+# Switch to the non-root user
+USER appuser
+
+# Run the client
 CMD ["./client"]
